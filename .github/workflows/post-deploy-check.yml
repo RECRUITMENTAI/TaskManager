@@ -9,29 +9,50 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Wait for deployment
-        run: sleep 30
-
-      - name: Check Health Endpoint
+      - name: Wait for deployment to complete
         run: |
-          curl -f http://44.253.94.252:5000/health || {
-            echo "❌ Flask app health endpoint not accessible"
-            exit 1
-          }
+          echo "⏳ Waiting for deployment to complete..."
+          sleep 45
 
-      - name: Check Flask App Home Page
+      - name: Check Health Endpoint with Retry
         run: |
-          curl -f http://44.253.94.252:5000/ || {
-            echo "❌ Flask app home page not accessible"
-            exit 1
-          }
+          echo "🔍 Testing health endpoint with retry logic..."
+          for i in {1..10}; do
+            if curl -f -s http://44.253.94.252:5000/health > /dev/null; then
+              echo "✅ Health endpoint is responding"
+              health_response=$(curl -s http://44.253.94.252:5000/health)
+              echo "📋 Health response: $health_response"
+              
+              # Check if response contains version info (indicating new deployment)
+              if [[ $health_response == *"version"* ]]; then
+                echo "✅ New version deployed successfully!"
+              else
+                echo "⚠️ Health endpoint responding but may be old version"
+              fi
+              break
+            elif [ $i -eq 10 ]; then
+              echo "❌ Health endpoint not accessible after 10 attempts"
+              exit 1
+            else
+              echo "⏳ Attempt $i/10 - health endpoint not ready, waiting..."
+              sleep 6
+            fi
+          done
 
-      - name: Check App Response Content
+      - name: Check Main Application
         run: |
-          response=$(curl -s http://44.253.94.252:5000/)
+          echo "🔍 Testing main application..."
+          response=$(curl -s http://44.253.94.252:5000/ || echo "FAILED")
           if [[ $response == *"Task Manager"* ]]; then
-            echo "✅ Flask Task Manager is responding correctly"
+            echo "✅ Main application is responding correctly"
           else
-            echo "❌ Flask app not returning expected content"
+            echo "❌ Main application not responding properly"
+            echo "Response received: $response"
             exit 1
           fi
+
+      - name: Deployment Summary
+        run: |
+          echo "🎉 Post-deployment verification completed successfully!"
+          echo "🌐 App: http://44.253.94.252:5000"
+          echo "🔍 Health: http://44.253.94.252:5000/health"

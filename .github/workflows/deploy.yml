@@ -26,34 +26,68 @@ jobs:
             
             # Clone/update repo using Personal Access Token
             if [ ! -d ".git" ]; then
+              echo "📥 Cloning repository..."
               git clone https://${{ secrets.PAT_TOKEN }}@github.com/RECRUITMENTAI/TaskManager.git .
             else
-              git config credential.helper store
-              echo "https://${{ secrets.PAT_TOKEN }}@github.com" > ~/.git-credentials
-              git pull origin main
+              echo "📥 Pulling latest changes..."
+              git pull https://${{ secrets.PAT_TOKEN }}@github.com/RECRUITMENTAI/TaskManager.git main
             fi
             
             # Setup Python virtual environment
+            echo "🐍 Setting up Python environment..."
             python3 -m venv venv
             source venv/bin/activate
             pip install -r requirements.txt
             
-            # Kill existing Flask process
+            # Kill existing Flask processes gracefully
+            echo "🔄 Stopping existing Flask processes..."
             pkill -f "python.*app.py" || true
+            sleep 2
             
-            # Start Flask app in background
+            # Remove any existing log file
+            rm -f app.log
+            
+            # Start Flask app with proper backgrounding
+            echo "🚀 Starting Flask application..."
             source venv/bin/activate
             nohup python app.py > app.log 2>&1 &
             
-            # Verify app started
-            sleep 5
+            # Give Flask time to start
+            echo "⏳ Waiting for Flask to start..."
+            sleep 8
+            
+            # Check if Flask is running
             if pgrep -f "python.*app.py" > /dev/null; then
-              echo "✅ Flask app started successfully on port 5000"
+              echo "✅ Flask process is running"
+              
+              # Test the health endpoint
+              echo "🔍 Testing health endpoint..."
+              for i in {1..5}; do
+                if curl -f -s http://localhost:5000/health > /dev/null; then
+                  echo "✅ Health endpoint responding"
+                  break
+                elif [ $i -eq 5 ]; then
+                  echo "❌ Health endpoint not responding after 5 attempts"
+                  echo "Flask process status:"
+                  pgrep -f "python.*app.py" || echo "No Flask process found"
+                  echo "Last 20 lines of app.log:"
+                  tail -20 app.log 2>/dev/null || echo "No log file found"
+                  exit 1
+                else
+                  echo "⏳ Attempt $i/5 - waiting for health endpoint..."
+                  sleep 2
+                fi
+              done
+              
+              # Get public IP and show success
               PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)
+              echo "🌐 Flask app deployed successfully!"
               echo "🌐 App accessible at: http://$PUBLIC_IP:5000"
+              echo "🔍 Health endpoint: http://$PUBLIC_IP:5000/health"
+              
             else
-              echo "❌ Failed to start Flask app"
+              echo "❌ Flask process not running"
               echo "Last 20 lines of app.log:"
-              tail -20 app.log || echo "No log file found"
+              tail -20 app.log 2>/dev/null || echo "No log file found"
               exit 1
             fi
