@@ -9,9 +9,6 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
       - name: Deploy to EC2 via SSH
         uses: appleboy/ssh-action@v1.0.0
         with:
@@ -20,68 +17,43 @@ jobs:
           key: ${{ secrets.EC2_KEY }}
           script: |
             # Update system and install required packages
-            sudo apt-get update
-            sudo apt-get install -y python3 python3-pip git
+            sudo apt-get update -y
+            sudo apt-get install -y python3 python3-pip git python3-venv
             
             # Create directory if it doesn't exist
             mkdir -p /home/ubuntu/taskmanager
-            
-            # Setup SSH key for GitHub if not exists
-            if [ ! -f ~/.ssh/github_deploy_key ]; then
-              echo "Generating SSH key for GitHub access..."
-              ssh-keygen -t ed25519 -f ~/.ssh/github_deploy_key -N "" -C "ec2-deploy-$(date +%s)"
-              chmod 600 ~/.ssh/github_deploy_key
-              
-              echo "Add this public key to GitHub repo Deploy Keys:"
-              echo "=========================================="
-              cat ~/.ssh/github_deploy_key.pub
-              echo "=========================================="
-              echo "Go to: https://github.com/RECRUITMENTAI/TaskManager/settings/keys"
-              echo "Click 'Add deploy key', paste the key above, check 'Allow write access'"
-              echo "Then re-run deployment"
-              exit 1
-            fi
-            
-            # Configure SSH for GitHub
-            if [ ! -f ~/.ssh/config ] || ! grep -q "github.com" ~/.ssh/config; then
-              cat >> ~/.ssh/config << EOF
-Host github.com
-    HostName github.com
-    User git
-    IdentityFile ~/.ssh/github_deploy_key
-    StrictHostKeyChecking no
-EOF
-            fi
-            
-            # Navigate to project directory
             cd /home/ubuntu/taskmanager
             
-            # Clone repo if it doesn't exist, otherwise pull (using SSH)
+            # Clone/update repo using Personal Access Token
             if [ ! -d ".git" ]; then
-              git clone git@github.com:RECRUITMENTAI/TaskManager.git .
+              git clone https://${{ secrets.PAT_TOKEN }}@github.com/RECRUITMENTAI/TaskManager.git .
             else
+              git config credential.helper store
+              echo "https://${{ secrets.PAT_TOKEN }}@github.com" > ~/.git-credentials
               git pull origin main
             fi
             
-            # Install/update dependencies using virtual environment
+            # Setup Python virtual environment
             python3 -m venv venv
             source venv/bin/activate
             pip install -r requirements.txt
             
-            # Kill existing Flask process if running
+            # Kill existing Flask process
             pkill -f "python.*app.py" || true
             
-            # Start Flask app in background using virtual environment
+            # Start Flask app in background
             source venv/bin/activate
             nohup python app.py > app.log 2>&1 &
             
-            # Wait a moment and check if app started
+            # Verify app started
             sleep 5
             if pgrep -f "python.*app.py" > /dev/null; then
-              echo "Flask app started successfully on port 5000"
-              echo "App should be accessible at http://$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4):5000"
+              echo "✅ Flask app started successfully on port 5000"
+              PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)
+              echo "🌐 App accessible at: http://$PUBLIC_IP:5000"
             else
-              echo "Failed to start Flask app. Checking logs:"
+              echo "❌ Failed to start Flask app"
+              echo "Last 20 lines of app.log:"
               tail -20 app.log || echo "No log file found"
               exit 1
             fi
