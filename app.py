@@ -345,7 +345,12 @@ def delete(task_id):
 @app.route('/health')
 def health():
     """Health check endpoint for deployment verification."""
-    return {'status': 'healthy', 'app': 'Flask Task Manager'}
+    return {
+        'status': 'healthy', 
+        'app': 'Flask Task Manager',
+        'version': '1.1.0',
+        'features': ['CRUD tasks', 'SQLite storage', 'Responsive UI']
+    }
 
 
 if __name__ == '__main__':
