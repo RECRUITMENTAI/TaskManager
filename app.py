@@ -338,6 +338,11 @@ def delete(task_id):
     delete_task(task_id)
     return redirect(url_for('index'))
 
+@app.route('/health')
+def health():
+    """Health check endpoint for deployment verification."""
+    return {'status': 'healthy', 'app': 'Flask Task Manager'}
+
 if __name__ == '__main__':
     # Initialize database on startup
     init_db()
