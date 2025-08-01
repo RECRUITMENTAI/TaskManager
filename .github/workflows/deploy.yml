@@ -30,7 +30,19 @@ jobs:
             if [ ! -d ".git" ]; then
               git clone https://${{ secrets.PAT_TOKEN }}@github.com/RECRUITMENTAI/TaskManager.git .
             else
+              # Backup existing database if it exists
+              if [ -f "tasks.db" ]; then
+                cp tasks.db tasks.db.backup
+                echo "📦 Backed up existing database"
+              fi
+              git reset --hard
+              git clean -fd
               git pull https://${{ secrets.PAT_TOKEN }}@github.com/RECRUITMENTAI/TaskManager.git main
+              # Restore database if backup exists
+              if [ -f "tasks.db.backup" ]; then
+                mv tasks.db.backup tasks.db
+                echo "📦 Restored existing database"
+              fi
             fi
 
             echo "🐍 Setting up Python virtual environment..."
