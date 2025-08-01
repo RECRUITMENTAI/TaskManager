@@ -44,3 +44,35 @@ def test_empty_task_not_added(client):
 
     rv = client.get('/')
     assert b'No tasks yet!' in rv.data
+
+
+def test_api_stats_empty(client):
+    """Test API stats endpoint with no tasks."""
+    rv = client.get('/api/stats')
+    assert rv.status_code == 200
+    data = rv.get_json()
+    assert data['total_tasks'] == 0
+    assert data['completed_tasks'] == 0
+    assert data['incomplete_tasks'] == 0
+    assert data['completion_rate'] == 0
+
+
+def test_api_stats_with_tasks(client):
+    """Test API stats endpoint with tasks."""
+    # Add some tasks
+    client.post('/add', data={'title': 'Task 1'})
+    client.post('/add', data={'title': 'Task 2'})
+    
+    # Complete one task (get the task ID first)
+    rv = client.get('/')
+    # For this test, we'll assume the first task has ID 1
+    client.post('/toggle/1')
+    
+    # Check stats
+    rv = client.get('/api/stats')
+    assert rv.status_code == 200
+    data = rv.get_json()
+    assert data['total_tasks'] == 2
+    assert data['completed_tasks'] == 1
+    assert data['incomplete_tasks'] == 1
+    assert data['completion_rate'] == 50.0
