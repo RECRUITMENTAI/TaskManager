@@ -94,8 +94,19 @@ HTML_TEMPLATE = '''
         h1 {
             text-align: center;
             color: #2c3e50;
-            margin-bottom: 2rem;
+            margin-bottom: 1rem;
             font-size: 2.5rem;
+        }
+        
+        .task-counter {
+            text-align: center;
+            font-size: 1.2rem;
+            color: #6c757d;
+            margin-bottom: 2rem;
+            padding: 0.5rem;
+            background: #e9ecef;
+            border-radius: 6px;
+            font-weight: 500;
         }
         
         .add-task-form {
@@ -273,6 +284,11 @@ HTML_TEMPLATE = '''
     <div class="container">
         <h1>Task Manager</h1>
         
+        <!-- Task Counter -->
+        <div class="task-counter">
+            Total Tasks: {{ task_count }}
+        </div>
+        
         <!-- Add Task Form -->
         <form method="POST" action="/add" class="add-task-form">
             <input type="text" name="title" placeholder="Enter a new task..." required>
@@ -320,7 +336,8 @@ HTML_TEMPLATE = '''
 def index():
     """Display all tasks."""
     tasks = get_all_tasks()
-    return render_template_string(HTML_TEMPLATE, tasks=tasks)
+    task_count = len(tasks)
+    return render_template_string(HTML_TEMPLATE, tasks=tasks, task_count=task_count)
 
 @app.route('/add', methods=['POST'])
 def add():
