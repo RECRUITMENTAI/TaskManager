@@ -21,4 +21,21 @@ jobs:
           script: |
             cd /home/ubuntu/taskmanager
             git pull origin main
-            docker-compose down && docker-compose up -d
+            
+            # Install/update dependencies
+            pip3 install -r requirements.txt
+            
+            # Kill existing Flask process if running
+            pkill -f "python.*app.py" || true
+            
+            # Start Flask app in background
+            nohup python3 app.py > app.log 2>&1 &
+            
+            # Wait a moment and check if app started
+            sleep 3
+            if pgrep -f "python.*app.py" > /dev/null; then
+              echo "Flask app started successfully on port 5000"
+            else
+              echo "Failed to start Flask app"
+              exit 1
+            fi

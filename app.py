@@ -7,9 +7,13 @@ app = Flask(__name__)
 # Database configuration
 DATABASE = 'tasks.db'
 
+def get_database_path():
+    """Get the database path from config or default."""
+    return app.config.get('DATABASE', DATABASE)
+
 def init_db():
     """Initialize the database with tasks table if it doesn't exist."""
-    with sqlite3.connect(DATABASE) as conn:
+    with sqlite3.connect(get_database_path()) as conn:
         conn.execute('''
             CREATE TABLE IF NOT EXISTS tasks (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -21,7 +25,7 @@ def init_db():
 
 def get_db_connection():
     """Get a database connection."""
-    conn = sqlite3.connect(DATABASE)
+    conn = sqlite3.connect(get_database_path())
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -338,9 +342,15 @@ def delete(task_id):
     delete_task(task_id)
     return redirect(url_for('index'))
 
+@app.route('/health')
+def health():
+    """Health check endpoint for deployment verification."""
+    return {'status': 'healthy', 'app': 'Flask Task Manager'}
+
+
 if __name__ == '__main__':
     # Initialize database on startup
     init_db()
-    
+
     # Run the application
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=False)
