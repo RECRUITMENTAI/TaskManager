@@ -1,0 +1,57 @@
+name: Simple Deploy to EC2
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_KEY }}
+          script: |
+            # Update system and install required packages
+            sudo apt-get update -y
+            sudo apt-get install -y python3 python3-pip git python3-venv
+            
+            # Create directory if it doesn't exist
+            mkdir -p /home/ubuntu/taskmanager
+            cd /home/ubuntu/taskmanager
+            
+            # Clone/update repo using Personal Access Token
+            if [ ! -d ".git" ]; then
+              git clone https://${{ secrets.GITHUB_TOKEN }}@github.com/RECRUITMENTAI/TaskManager.git .
+            else
+              git pull https://${{ secrets.GITHUB_TOKEN }}@github.com/RECRUITMENTAI/TaskManager.git main
+            fi
+            
+            # Setup Python virtual environment
+            python3 -m venv venv
+            source venv/bin/activate
+            pip install -r requirements.txt
+            
+            # Kill existing Flask process
+            pkill -f "python.*app.py" || true
+            
+            # Start Flask app in background
+            source venv/bin/activate
+            nohup python app.py > app.log 2>&1 &
+            
+            # Verify app started
+            sleep 5
+            if pgrep -f "python.*app.py" > /dev/null; then
+              echo "✅ Flask app started successfully on port 5000"
+              PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)
+              echo "🌐 App accessible at: http://$PUBLIC_IP:5000"
+            else
+              echo "❌ Failed to start Flask app"
+              echo "Last 20 lines of app.log:"
+              tail -20 app.log || echo "No log file found"
+              exit 1
+            fi

@@ -18,56 +18,58 @@ jobs:
           script: |
             set -e
 
-            # Update system and install required packages
+            echo "🚀 Updating system packages..."
             sudo apt-get update -y
             sudo apt-get install -y python3 python3-pip git python3-venv curl
 
-            # Create project directory
+            echo "📁 Preparing project directory..."
             mkdir -p /home/ubuntu/taskmanager
             cd /home/ubuntu/taskmanager
 
-            # Clone or pull latest changes
+            echo "📥 Syncing repository..."
             if [ ! -d ".git" ]; then
-              echo "📥 Cloning repository..."
               git clone https://${{ secrets.PAT_TOKEN }}@github.com/RECRUITMENTAI/TaskManager.git .
             else
-              echo "📥 Pulling latest changes..."
               git pull https://${{ secrets.PAT_TOKEN }}@github.com/RECRUITMENTAI/TaskManager.git main
             fi
 
-            # Setup Python virtual environment
-            echo "🐍 Setting up Python environment..."
+            echo "🐍 Setting up Python virtual environment..."
             python3 -m venv venv
             source venv/bin/activate
             pip install --upgrade pip
             pip install -r requirements.txt
 
-            # Kill any existing Flask processes
-            echo "🔄 Stopping existing Flask processes..."
-            ps aux | grep "[p]ython.*app.py" | awk '{print $2}' | xargs -r kill -TERM || true
-            sleep 3
-            ps aux | grep "[p]ython.*app.py" | awk '{print $2}' | xargs -r kill -KILL || true
+            echo "🛠️ Creating or updating systemd service..."
+            sudo tee /etc/systemd/system/flaskapp.service > /dev/null <<EOF
+            [Unit]
+            Description=TaskManager Flask App
+            After=network.target
 
-            # Remove any old log
-            rm -f app.log
+            [Service]
+            User=ubuntu
+            WorkingDirectory=/home/ubuntu/taskmanager
+            ExecStart=/home/ubuntu/taskmanager/venv/bin/python /home/ubuntu/taskmanager/app.py
+            Restart=always
+            Environment=FLASK_ENV=production
 
-            # Start Flask app using nohup so it persists after SSH exits
-            echo "🚀 Starting Flask application in background using nohup..."
-            source venv/bin/activate
-            nohup python app.py > app.log 2>&1 &
+            [Install]
+            WantedBy=multi-user.target
+            EOF
 
-            # Wait for the app to come online
-            echo "⏳ Waiting for Flask to start..."
+            echo "🔄 Restarting systemd service..."
+            sudo systemctl daemon-reload
+            sudo systemctl enable flaskapp
+            sudo systemctl restart flaskapp
+
+            echo "⏳ Waiting for Flask app to respond..."
             sleep 8
-
-            # Check if health endpoint responds
             for i in {1..5}; do
               if curl -f -s http://localhost:5000/health > /dev/null; then
                 echo "✅ Health endpoint is responsive"
                 break
               elif [ $i -eq 5 ]; then
                 echo "❌ Health endpoint failed after 5 attempts"
-                tail -20 app.log || echo "No logs found"
+                sudo journalctl -u flaskapp -n 20 || echo "No logs available"
                 exit 1
               else
                 echo "⏳ Attempt $i/5 - waiting..."
@@ -75,7 +77,6 @@ jobs:
               fi
             done
 
-            # Get public IP for reference
             PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)
             echo "🌐 App is running!"
             echo "🔗 http://$PUBLIC_IP:5000"
