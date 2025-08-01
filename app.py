@@ -352,6 +352,22 @@ def health():
         'features': ['CRUD tasks', 'SQLite storage', 'Responsive UI']
     }
 
+@app.route('/api/stats')
+def api_stats():
+    """API endpoint to get task statistics - suggested by python-api-builder agent."""
+    conn = get_db_connection()
+    total_tasks = conn.execute('SELECT COUNT(*) as count FROM tasks').fetchone()['count']
+    completed_tasks = conn.execute('SELECT COUNT(*) as count FROM tasks WHERE status = "complete"').fetchone()['count']
+    incomplete_tasks = total_tasks - completed_tasks
+    conn.close()
+    
+    return {
+        'total_tasks': total_tasks,
+        'completed_tasks': completed_tasks,
+        'incomplete_tasks': incomplete_tasks,
+        'completion_rate': round((completed_tasks / total_tasks * 100) if total_tasks > 0 else 0, 1)
+    }
+
 
 if __name__ == '__main__':
     # Initialize database on startup
