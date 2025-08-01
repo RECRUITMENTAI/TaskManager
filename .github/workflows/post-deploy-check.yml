@@ -1,0 +1,22 @@
+name: Post-Deploy Health Check
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check /health
+        run: |
+          curl -f http://44.253.94.252/health
+
+      - name: Check /docs
+        run: |
+          curl -f http://44.253.94.252/docs
+
+      - name: Check /api/tasks
+        run: |
+          curl -f http://44.253.94.252/api/tasks
