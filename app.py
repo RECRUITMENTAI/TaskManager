@@ -343,9 +343,10 @@ def health():
     """Health check endpoint for deployment verification."""
     return {'status': 'healthy', 'app': 'Flask Task Manager'}
 
+
 if __name__ == '__main__':
     # Initialize database on startup
     init_db()
-    
+
     # Run the application
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=False)
