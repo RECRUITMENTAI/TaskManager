@@ -348,7 +348,7 @@ def health():
     return {
         'status': 'healthy', 
         'app': 'Flask Task Manager',
-        'version': '1.2.0',
+        'version': '1.2.1',
         'features': ['CRUD tasks', 'SQLite storage', 'Responsive UI']
     }
 

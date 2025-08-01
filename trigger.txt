@@ -1,1 +1,1 @@
-trigger deployment v1.2.0
+trigger deployment v1.2.1 - fixed process management

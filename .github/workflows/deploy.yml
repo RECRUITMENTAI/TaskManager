@@ -41,8 +41,9 @@ jobs:
             
             # Kill existing Flask processes gracefully
             echo "🔄 Stopping existing Flask processes..."
-            pkill -f "python.*app.py" || true
-            sleep 2
+            ps aux | grep "[p]ython.*app.py" | awk '{print $2}' | xargs -r kill -TERM || true
+            sleep 3
+            ps aux | grep "[p]ython.*app.py" | awk '{print $2}' | xargs -r kill -KILL || true
             
             # Remove any existing log file
             rm -f app.log
@@ -50,14 +51,16 @@ jobs:
             # Start Flask app with proper backgrounding
             echo "🚀 Starting Flask application..."
             source venv/bin/activate
-            nohup python app.py > app.log 2>&1 &
+            python app.py > app.log 2>&1 &
+            APP_PID=$!
+            echo "Flask started with PID: $APP_PID"
             
             # Give Flask time to start
             echo "⏳ Waiting for Flask to start..."
             sleep 8
             
             # Check if Flask is running
-            if pgrep -f "python.*app.py" > /dev/null; then
+            if ps -p $APP_PID > /dev/null 2>&1; then
               echo "✅ Flask process is running"
               
               # Test the health endpoint
@@ -69,7 +72,7 @@ jobs:
                 elif [ $i -eq 5 ]; then
                   echo "❌ Health endpoint not responding after 5 attempts"
                   echo "Flask process status:"
-                  pgrep -f "python.*app.py" || echo "No Flask process found"
+                  ps -p $APP_PID || echo "Flask process $APP_PID not found"
                   echo "Last 20 lines of app.log:"
                   tail -20 app.log 2>/dev/null || echo "No log file found"
                   exit 1
