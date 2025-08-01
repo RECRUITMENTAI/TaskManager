@@ -1,1 +1,1 @@
-trigger deployment
+trigger deployment v1.2.0
