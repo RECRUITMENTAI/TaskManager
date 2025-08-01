@@ -16,15 +16,17 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_KEY }}
           script: |
+            set -e
+
             # Update system and install required packages
             sudo apt-get update -y
-            sudo apt-get install -y python3 python3-pip git python3-venv
-            
-            # Create directory if it doesn't exist
+            sudo apt-get install -y python3 python3-pip git python3-venv curl
+
+            # Create project directory
             mkdir -p /home/ubuntu/taskmanager
             cd /home/ubuntu/taskmanager
-            
-            # Clone/update repo using Personal Access Token
+
+            # Clone or pull latest changes
             if [ ! -d ".git" ]; then
               echo "📥 Cloning repository..."
               git clone https://${{ secrets.PAT_TOKEN }}@github.com/RECRUITMENTAI/TaskManager.git .
@@ -32,65 +34,49 @@ jobs:
               echo "📥 Pulling latest changes..."
               git pull https://${{ secrets.PAT_TOKEN }}@github.com/RECRUITMENTAI/TaskManager.git main
             fi
-            
+
             # Setup Python virtual environment
             echo "🐍 Setting up Python environment..."
             python3 -m venv venv
             source venv/bin/activate
+            pip install --upgrade pip
             pip install -r requirements.txt
-            
-            # Kill existing Flask processes gracefully
+
+            # Kill any existing Flask processes
             echo "🔄 Stopping existing Flask processes..."
             ps aux | grep "[p]ython.*app.py" | awk '{print $2}' | xargs -r kill -TERM || true
             sleep 3
             ps aux | grep "[p]ython.*app.py" | awk '{print $2}' | xargs -r kill -KILL || true
-            
-            # Remove any existing log file
+
+            # Remove any old log
             rm -f app.log
-            
-            # Start Flask app with proper backgrounding
-            echo "🚀 Starting Flask application..."
+
+            # Start Flask app using nohup so it persists after SSH exits
+            echo "🚀 Starting Flask application in background using nohup..."
             source venv/bin/activate
-            python app.py > app.log 2>&1 &
-            APP_PID=$!
-            echo "Flask started with PID: $APP_PID"
-            
-            # Give Flask time to start
+            nohup python app.py > app.log 2>&1 &
+
+            # Wait for the app to come online
             echo "⏳ Waiting for Flask to start..."
             sleep 8
-            
-            # Check if Flask is running
-            if ps -p $APP_PID > /dev/null 2>&1; then
-              echo "✅ Flask process is running"
-              
-              # Test the health endpoint
-              echo "🔍 Testing health endpoint..."
-              for i in {1..5}; do
-                if curl -f -s http://localhost:5000/health > /dev/null; then
-                  echo "✅ Health endpoint responding"
-                  break
-                elif [ $i -eq 5 ]; then
-                  echo "❌ Health endpoint not responding after 5 attempts"
-                  echo "Flask process status:"
-                  ps -p $APP_PID || echo "Flask process $APP_PID not found"
-                  echo "Last 20 lines of app.log:"
-                  tail -20 app.log 2>/dev/null || echo "No log file found"
-                  exit 1
-                else
-                  echo "⏳ Attempt $i/5 - waiting for health endpoint..."
-                  sleep 2
-                fi
-              done
-              
-              # Get public IP and show success
-              PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)
-              echo "🌐 Flask app deployed successfully!"
-              echo "🌐 App accessible at: http://$PUBLIC_IP:5000"
-              echo "🔍 Health endpoint: http://$PUBLIC_IP:5000/health"
-              
-            else
-              echo "❌ Flask process not running"
-              echo "Last 20 lines of app.log:"
-              tail -20 app.log 2>/dev/null || echo "No log file found"
-              exit 1
-            fi
+
+            # Check if health endpoint responds
+            for i in {1..5}; do
+              if curl -f -s http://localhost:5000/health > /dev/null; then
+                echo "✅ Health endpoint is responsive"
+                break
+              elif [ $i -eq 5 ]; then
+                echo "❌ Health endpoint failed after 5 attempts"
+                tail -20 app.log || echo "No logs found"
+                exit 1
+              else
+                echo "⏳ Attempt $i/5 - waiting..."
+                sleep 2
+              fi
+            done
+
+            # Get public IP for reference
+            PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)
+            echo "🌐 App is running!"
+            echo "🔗 http://$PUBLIC_IP:5000"
+            echo "🩺 Health: http://$PUBLIC_IP:5000/health"
